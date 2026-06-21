@@ -4,13 +4,12 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD0UDvv0BKK_i9lwD6BZukCUvHGEtoHP0k",
-  authDomain: "hikingfit-admin.firebaseapp.com",
-  projectId: "hikingfit-admin",
-  storageBucket: "hikingfit-admin.firebasestorage.app",
-  messagingSenderId: "926183535339",
-  appId: "1:926183535339:web:929107c19ef3772d8104ae",
-  measurementId: "G-JRQQP21027"
+  apiKey: "AIzaSyB42swfKfr8banMvrY9aQk0W8FjdR-v9Yg",
+  authDomain: "hikingfit-93024.firebaseapp.com",
+  projectId: "hikingfit-93024",
+  storageBucket: "hikingfit-93024.firebasestorage.app",
+  messagingSenderId: "19014984436",
+  appId: "1:19014984436:web:7248b7bffeebd4b2ecb4a1"
 };
 
 const app = initializeApp(firebaseConfig);

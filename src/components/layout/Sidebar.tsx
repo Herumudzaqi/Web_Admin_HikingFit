@@ -1,7 +1,11 @@
 import React from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom'; // Hapus Link, ganti pakai useNavigate
+import { signOut } from 'firebase/auth';
+import { auth } from '../../config/firebase'; // Pastikan path ini benar sesuai struktur folder Abang
 
 const Sidebar: React.FC = () => {
+  const navigate = useNavigate(); // Untuk navigasi setelah logout
+
   const getNavLinkClass = ({ isActive }: { isActive: boolean }) => {
     return isActive
       ? "bg-primary/10 border-l-4 border-primary text-primary-fixed font-bold flex items-center px-4 py-3 rounded-r-lg transition-transform"
@@ -10,6 +14,23 @@ const Sidebar: React.FC = () => {
 
   const getIconClass = ({ isActive }: { isActive: boolean }) => {
     return `material-symbols-outlined mr-3 ${isActive ? 'filled' : ''}`;
+  };
+
+  // --- FUNGSI LOGOUT YANG BENAR ---
+  const handleLogout = async () => {
+    try {
+      // 1. Matikan sesi dari Firebase Auth
+      await signOut(auth);
+      
+      // 2. Hapus Token JWT Admin dari penyimpanan browser
+      localStorage.removeItem('token');
+      
+      // 3. Pindah ke halaman login
+      navigate('/login');
+    } catch (error) {
+      console.error("Gagal logout:", error);
+      alert("Terjadi kesalahan saat logout.");
+    }
   };
 
   return (
@@ -74,10 +95,14 @@ const Sidebar: React.FC = () => {
       </div>
       
       <div className="px-md mt-auto pt-4 border-t border-surface-variant/20">
-        <Link to="/login" className="text-surface-variant hover:text-on-primary-fixed-variant flex items-center px-4 py-3 hover:bg-surface-variant/10 transition-colors duration-200 rounded-lg active:scale-[0.98]">
+        {/* Tombol Logout diubah menggunakan button onClick */}
+        <button 
+          onClick={handleLogout} 
+          className="w-full text-left text-surface-variant hover:text-on-primary-fixed-variant flex items-center px-4 py-3 hover:bg-surface-variant/10 transition-colors duration-200 rounded-lg active:scale-[0.98]"
+        >
           <span className="material-symbols-outlined mr-3">logout</span>
           <span className="font-title-lg text-title-lg">Logout</span>
-        </Link>
+        </button>
       </div>
     </nav>
   );

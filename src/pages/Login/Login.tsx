@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../../config/firebase';
+import { useNavigate } from 'react-router-dom'; // Hapus Link karena tombol register dihapus
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore'; 
+import { auth, db } from '../../config/firebase'; 
 import { logActivity } from '../../utils/activityLogger';
 
 const Login: React.FC = () => {
@@ -21,12 +22,38 @@ const Login: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      await signInWithEmailAndPassword(auth, email, password);
       
-      await logActivity("Login", "User berhasil login");
+      // 1. Proses Autentikasi Firebase
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
       
-      // Jika berhasil, Firebase akan menyimpan sesi secara otomatis (IndexedDB/LocalStorage)
-      navigate('/dashboard');
+      // 2. Cek Role di Firestore
+      const userDocRef = doc(db, 'users', user.uid); 
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        
+        // 3. Validasi Role Admin
+        if (userData.role === 'admin') {
+          
+          // 4. MINTA TOKEN FRESH KE FIREBASE LALU SIMPAN UNTUK BACKEND NODE.JS
+          const token = await user.getIdToken(true);
+          localStorage.setItem('token', token); // <--- Kunci Utama agar halaman Manajemen tidak error!
+          
+          await logActivity("Login", "Admin berhasil login");
+          navigate('/dashboard'); // Sukses masuk ke dashboard
+        } else {
+          // Jika bukan admin, paksa logout dan tampilkan error
+          await signOut(auth);
+          setError('Akses ditolak! Anda tidak memiliki izin Admin.');
+        }
+      } else {
+        // Jika data user tidak ada di Firestore
+        await signOut(auth);
+        setError('Data akun tidak ditemukan di database.');
+      }
+
     } catch (err: any) {
       setError(err.message || 'Login gagal. Periksa kembali kredensial Anda.');
     } finally {
@@ -88,10 +115,8 @@ const Login: React.FC = () => {
 
             {/* Password Field */}
             <div className="relative group">
-              <div className="flex justify-between items-center mb-xs">
-                <label htmlFor="password" className="font-label-md text-label-md text-on-surface-variant block">Password</label>
-                <a href="#" className="font-label-md text-label-md text-primary hover:text-primary-fixed-dim transition-colors">Forgot password?</a>
-              </div>
+              {/* Lupa Password dihapus, margin bawah disesuaikan */}
+              <label htmlFor="password" className="font-label-md text-label-md text-on-surface-variant block mb-xs">Password</label>
               <div className="relative flex items-center">
                 <span className="material-symbols-outlined absolute left-sm text-on-surface-variant z-10 pointer-events-none">lock</span>
                 <input 
@@ -130,11 +155,8 @@ const Login: React.FC = () => {
             </button>
           </form>
 
-          {/* Footer Text */}
-          <div className="mt-lg text-center">
-            <p className="font-body-md text-body-md text-on-surface-variant text-sm mb-2">
-              Belum punya akun? <Link to="/register" className="text-primary hover:underline font-medium">Daftar di sini</Link>
-            </p>
+          {/* Footer Text - Register Dihapus */}
+          <div className="mt-lg text-center pt-4 border-t border-outline/30">
             <p className="font-body-md text-body-md text-on-surface-variant text-xs opacity-80">
               Protected by secure systems. Unauthorized access is strictly prohibited.
             </p>
