@@ -1,322 +1,282 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, deleteDoc, updateDoc, addDoc } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import toast from 'react-hot-toast';
 
-interface Mountain {
-  id: string;
-  name: string;
-  location: string;
-  province: string;
-  elevation: number | string;
-  difficulty?: string;
-  status: string;
-  imageUrl?: string;
-  latitude?: number | string;
-  longitude?: number | string;
-  description?: string;
-}
-
-const ManajemenGunung: React.FC = () => {
-  const [mountains, setMountains] = useState<Mountain[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  
+export default function ManajemenGunung() {
+  const [mountains, setMountains] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingMountain, setEditingMountain] = useState<Mountain | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // STATE TANPA INPUT MANUAL CUACA
   const [formData, setFormData] = useState({
-    name: '', location: '', province: 'Jawa Tengah', elevation: '', difficulty: 'Medium', status: 'Buka',
-    latitude: '', longitude: '', description: '', imageUrl: ''
+    name: '',
+    location: '',
+    province: '',
+    latitude: '',
+    longitude: '',
+    difficulty: 'Medium',
+    elevation: '',
+    status: 'Buka',
+    imageUrl: '',
+    description: '',
+    estimatedDuration: '', 
+    distance: ''
   });
-  
-  const [isSaving, setIsSaving] = useState(false);
+
+  const fetchMountains = async () => {
+    setIsLoading(true);
+    try {
+      // VITE_API_URL ini akan mengarah ke localhost Abang dari file .env
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/mountains`); 
+      const json = await res.json();
+      if (json.success) {
+        setMountains(json.data);
+      }
+    } catch (error) {
+      console.error("Gagal mengambil data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "mountains"), (snapshot) => {
-      const data: Mountain[] = [];
-      snapshot.forEach((doc) => {
-        data.push({ id: doc.id, ...doc.data() } as Mountain);
-      });
-      setMountains(data);
-    }, (error) => {
-      console.error("Error fetching mountains: ", error);
-      toast.error("Gagal memuat data gunung dari Firebase.");
-    });
-    return () => unsubscribe();
+    fetchMountains();
   }, []);
 
-  const handleOpenModal = (mountain?: Mountain) => {
-    if (mountain) {
-      setEditingMountain(mountain);
-      setFormData({
-        name: mountain.name, 
-        location: mountain.location, 
-        province: mountain.province || 'Jawa Tengah',
-        elevation: mountain.elevation.toString(), 
-        difficulty: mountain.difficulty || 'Medium',
-        status: mountain.status,
-        latitude: mountain.latitude?.toString() || '', 
-        longitude: mountain.longitude?.toString() || '', 
-        description: mountain.description || '',
-        imageUrl: mountain.imageUrl || '' // Mengambil URL yang sudah ada
-      });
-    } else {
-      setEditingMountain(null);
-      setFormData({
-        name: '', location: '', province: 'Jawa Tengah', elevation: '', difficulty: 'Medium', status: 'Buka',
-        latitude: '', longitude: '', description: '', imageUrl: ''
-      });
-    }
+  const handleAdd = () => {
+    setEditingId(null);
+    setFormData({
+      name: '', location: '', province: '', latitude: '', longitude: '', 
+      difficulty: 'Medium', elevation: '', status: 'Buka', imageUrl: '', description: '',
+      estimatedDuration: '', distance: ''
+    });
     setIsModalOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setEditingMountain(null);
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setIsSaving(true);
-
-      const dataToSave = { 
-        name: formData.name,
-        location: formData.location,
-        province: formData.province,
-        elevation: Number(formData.elevation),
-        difficulty: formData.difficulty,
-        status: formData.status,
-        latitude: Number(formData.latitude),
-        longitude: Number(formData.longitude),
-        description: formData.description,
-        imageUrl: formData.imageUrl, // Cukup simpan URL Teksnya saja
-        updatedAt: new Date().toISOString()
-      };
-
-      if (editingMountain) {
-        await updateDoc(doc(db, "mountains", editingMountain.id), dataToSave);
-        toast.success("Data gunung berhasil diperbarui!");
-      } else {
-        await addDoc(collection(db, "mountains"), { ...dataToSave, createdAt: new Date().toISOString() });
-        toast.success("Gunung baru berhasil ditambahkan!");
-      }
-      handleCloseModal();
-    } catch (error: any) {
-      console.error("Error saving mountain: ", error);
-      toast.error(error.message || "Terjadi kesalahan saat menyimpan data.");
-    } finally {
-      setIsSaving(false);
-    }
+  const handleEdit = (mountain: any) => {
+    setEditingId(mountain.id);
+    setFormData({
+      name: mountain.name || '',
+      location: mountain.location || '',
+      province: mountain.province || '',
+      latitude: mountain.latitude || '',
+      longitude: mountain.longitude || '',
+      difficulty: mountain.difficulty || 'Medium',
+      elevation: mountain.elevation || '',
+      status: mountain.status || 'Buka',
+      imageUrl: mountain.imageUrl || '',
+      description: mountain.description || '',
+      estimatedDuration: mountain.estimatedDuration || '', 
+      distance: mountain.distance || ''
+    });
+    setIsModalOpen(true);
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("Apakah Anda yakin ingin menghapus gunung ini?")) {
+    if (window.confirm("Yakin ingin menghapus gunung ini?")) {
       try {
-        await deleteDoc(doc(db, "mountains", id));
-        toast.success("Gunung berhasil dihapus.");
-      } catch (error: any) {
-        console.error("Error deleting mountain: ", error);
-        toast.error(error.message || "Gagal menghapus data gunung.");
+        await fetch(`${import.meta.env.VITE_API_URL}/mountains/${id}`, { method: 'DELETE' });
+        fetchMountains();
+      } catch (error) {
+        console.error("Gagal menghapus:", error);
       }
     }
   };
 
-  const filteredMountains = mountains.filter(m => {
-    return m.name.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const url = editingId 
+        ? `${import.meta.env.VITE_API_URL}/mountains/${editingId}`
+        : `${import.meta.env.VITE_API_URL}/mountains`;
+        
+      const method = editingId ? 'PUT' : 'POST';
+
+      await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      setIsModalOpen(false);
+      fetchMountains();
+    } catch (error) {
+      console.error("Gagal menyimpan data:", error);
+    }
+  };
 
   return (
-    <div className="flex flex-col h-full gap-lg relative">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="font-headline-lg text-headline-lg font-bold text-on-surface">Manajemen Gunung</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant mt-1">Kelola data pegunungan dan koordinat cuaca (Database Only).</p>
-        </div>
-        <button onClick={() => handleOpenModal()} className="bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container px-6 py-2.5 rounded-lg font-title-lg text-title-lg flex items-center justify-center gap-2 shadow-sm hover:-translate-y-0.5 transition-all active:scale-[0.98]">
-          <span className="material-symbols-outlined text-[20px]">add</span>
-          Tambah Gunung
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Manajemen Gunung</h1>
+        <button 
+          onClick={handleAdd}
+          className="bg-[#4A7C59] hover:bg-[#3b6347] text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+        >
+          + Tambah Gunung
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-lg flex-1">
-        <div className="lg:col-span-3 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-outline-variant flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="relative flex-1 max-w-md">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
-              <input 
-                type="text" placeholder="Cari nama gunung..." 
-                className="w-full pl-10 pr-4 py-2 bg-surface rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary text-body-md font-body-md text-on-surface transition-colors"
-                value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-outline-variant bg-surface-container/30">
-                  <th className="py-3 px-4 font-title-lg text-title-lg text-on-surface-variant">Gunung</th>
-                  <th className="py-3 px-4 font-title-lg text-title-lg text-on-surface-variant">Lokasi</th>
-                  <th className="py-3 px-4 font-title-lg text-title-lg text-on-surface-variant">Ketinggian</th>
-                  <th className="py-3 px-4 font-title-lg text-title-lg text-on-surface-variant">Level</th>
-                  <th className="py-3 px-4 font-title-lg text-title-lg text-on-surface-variant text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredMountains.length === 0 ? (
-                  <tr><td colSpan={5} className="py-8 text-center text-on-surface-variant">Belum ada data gunung.</td></tr>
-                ) : filteredMountains.map((mount) => (
-                  <tr key={mount.id} className="border-b border-outline-variant/50 hover:bg-surface-container-lowest transition-colors group">
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-3">
-                        {mount.imageUrl ? (
-                           <img src={mount.imageUrl} alt={mount.name} className="w-12 h-12 rounded-lg object-cover border border-outline-variant" onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/150?text=No+Image')} />
-                        ) : (
-                          <div className="w-12 h-12 rounded-lg bg-tertiary/20 text-tertiary flex items-center justify-center font-bold">
-                            <span className="material-symbols-outlined">landscape</span>
-                          </div>
-                        )}
-                        <div>
-                          <div className="font-title-lg text-title-lg text-on-surface font-medium">{mount.name}</div>
-                          <div className="font-label-md text-[11px] text-on-surface-variant uppercase tracking-wider">{mount.id.slice(0, 8)}</div>
-                        </div>
-                      </div>
+      {/* TABEL DATA GUNUNG */}
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="px-6 py-4 text-sm font-semibold text-gray-600">Foto</th>
+                <th className="px-6 py-4 text-sm font-semibold text-gray-600">Nama Gunung</th>
+                <th className="px-6 py-4 text-sm font-semibold text-gray-600">Lokasi & Ketinggian</th>
+                <th className="px-6 py-4 text-sm font-semibold text-gray-600">Durasi, Jarak & Cuaca Real-time</th>
+                <th className="px-6 py-4 text-sm font-semibold text-gray-600">Status</th>
+                <th className="px-6 py-4 text-sm font-semibold text-gray-600">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={6} className="text-center py-8">Loading data...</td></tr>
+              ) : mountains.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-8 text-gray-500">Belum ada data gunung.</td></tr>
+              ) : (
+                mountains.map((mountain) => (
+                  <tr key={mountain.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                    
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {mountain.imageUrl ? (
+                        <img 
+                          src={mountain.imageUrl} 
+                          alt={mountain.name} 
+                          className="w-16 h-12 object-cover rounded-md shadow-sm border border-gray-200"
+                          onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image'; }}
+                        />
+                      ) : (
+                        <div className="w-16 h-12 bg-gray-100 rounded-md flex items-center justify-center text-[10px] text-gray-400 border border-gray-200">No Image</div>
+                      )}
                     </td>
-                    <td className="py-4 px-4 font-body-md text-body-md text-on-surface-variant">{mount.location}</td>
-                    <td className="py-4 px-4 font-label-md text-label-md text-on-surface-variant font-bold">{mount.elevation} mdpl</td>
-                    <td className="py-4 px-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
-                        mount.difficulty === 'Light' ? 'bg-primary/20 text-primary' : 
-                        mount.difficulty === 'Medium' ? 'bg-tertiary/20 text-tertiary' : 
-                        'bg-error/20 text-error'
-                      }`}>
-                        {mount.difficulty || 'Medium'}
+
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-gray-800">{mountain.name}</div>
+                      <div className="text-xs text-gray-500">{mountain.difficulty}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-800">{mountain.location}, {mountain.province}</div>
+                      <div className="text-xs text-gray-500">{mountain.elevation} mdpl</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-800">⏱️ {mountain.estimatedDuration || '-'} | 📏 {mountain.distance || '-'}</div>
+                      <div className="text-xs text-blue-600 font-bold mt-1">☁️ Cuaca Saat Ini: {mountain.weather}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${mountain.status === 'Buka' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {mountain.status}
                       </span>
                     </td>
-                    <td className="py-4 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => handleOpenModal(mount)} className="p-1.5 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-md transition-colors" title="Edit">
-                          <span className="material-symbols-outlined text-[20px]">edit</span>
+                    
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex gap-2">
+                        <button onClick={() => handleEdit(mountain)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm font-medium transition-colors shadow-sm">
+                          Edit
                         </button>
-                        <button onClick={() => handleDelete(mount.id)} className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-md transition-colors" title="Hapus">
-                          <span className="material-symbols-outlined text-[20px]">delete</span>
+                        <button onClick={() => handleDelete(mountain.id)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded-md text-sm font-medium transition-colors shadow-sm">
+                          Hapus
                         </button>
                       </div>
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
-        <div className="flex flex-col gap-lg">
-          <div className="bg-surface-container-lowest rounded-xl p-md border border-outline-variant shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-              <span className="material-symbols-outlined filled text-[24px]">landscape</span>
-            </div>
-            <div>
-              <p className="font-label-md text-label-md text-on-surface-variant uppercase">Total Gunung</p>
-              <h3 className="font-headline-md text-headline-md text-on-surface mt-1">{mountains.length}</h3>
-            </div>
-          </div>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Modal Tambah/Edit */}
+      {/* MODAL FORM TAMBAH/EDIT */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-on-background/40 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-surface rounded-xl shadow-lg w-full max-w-2xl overflow-hidden my-8">
-            <div className="px-6 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
-              <h3 className="font-headline-md text-headline-md font-bold text-on-surface">
-                {editingMountain ? 'Edit Gunung' : 'Tambah Gunung'}
-              </h3>
-              <button onClick={handleCloseModal} className="text-on-surface-variant hover:text-on-surface">
-                <span className="material-symbols-outlined">close</span>
-              </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+              <h2 className="text-xl font-bold text-gray-800">
+                {editingId ? 'Edit Data Gunung' : 'Tambah Gunung Baru'}
+              </h2>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
             </div>
-            <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              
-              {/* BAGIAN GAMBAR (HANYA URL MANUAL) */}
-              <div className="sm:col-span-2 bg-surface-container p-4 rounded-lg border border-outline-variant">
-                <label className="block text-sm font-bold text-on-surface mb-2">Link Gambar Gunung</label>
-                <input 
-                  type="url" 
-                  className="w-full px-3 py-2 border rounded-md text-sm mb-2" 
-                  value={formData.imageUrl} 
-                  onChange={e => setFormData({...formData, imageUrl: e.target.value})} 
-                  placeholder="Paste URL gambar dari Google di sini..." 
-                />
-                
-                {/* Preview Gambar */}
-                {formData.imageUrl && (
-                  <div className="mt-2">
-                    <p className="text-xs text-on-surface-variant mb-1">Preview:</p>
-                    <img 
-                      src={formData.imageUrl} 
-                      alt="Preview" 
-                      className="h-24 w-auto rounded-lg object-cover border border-outline"
-                      onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/150?text=Link+Rusak')}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-on-surface-variant mb-1">Nama Gunung</label>
-                  <input type="text" required className="w-full px-3 py-2 border rounded-md" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Cth: Gunung Prau" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-on-surface-variant mb-1">Ketinggian (Angka saja)</label>
-                  <input type="number" required className="w-full px-3 py-2 border rounded-md" value={formData.elevation} onChange={e => setFormData({...formData, elevation: e.target.value})} placeholder="2565" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-on-surface-variant mb-1">Lokasi Detail</label>
-                  <input type="text" required className="w-full px-3 py-2 border rounded-md" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} placeholder="Dieng, Jawa Tengah" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-on-surface-variant mb-1">Tingkat Kesulitan</label>
-                  <select className="w-full px-3 py-2 border rounded-md" value={formData.difficulty} onChange={e => setFormData({...formData, difficulty: e.target.value})}>
-                    <option value="Light">Light (Mudah)</option>
-                    <option value="Medium">Medium (Sedang)</option>
-                    <option value="Hard">Hard (Sulit)</option>
-                  </select>
-                </div>
-                
-                <div className="bg-primary/5 p-3 rounded-lg border border-primary/20 sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2 mb-[-10px]">
-                    <p className="text-xs text-primary font-bold flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">cloud</span> Koordinat Cuaca (Wajib)
-                    </p>
+            
+            <form onSubmit={handleSubmit} className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+                {/* KOLOM 1 */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Nama Gunung</label>
+                    <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-on-surface-variant mb-1">Latitude</label>
-                    <input type="number" step="any" required className="w-full px-3 py-2 border rounded-md bg-white" value={formData.latitude} onChange={e => setFormData({...formData, latitude: e.target.value})} placeholder="-7.1895" />
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Provinsi</label>
+                    <input type="text" required placeholder="Contoh: Jawa Tengah" value={formData.province} onChange={e => setFormData({...formData, province: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-on-surface-variant mb-1">Longitude</label>
-                    <input type="number" step="any" required className="w-full px-3 py-2 border rounded-md bg-white" value={formData.longitude} onChange={e => setFormData({...formData, longitude: e.target.value})} placeholder="109.9213" />
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Lokasi Detail</label>
+                    <input type="text" required placeholder="Contoh: Dieng" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Tingkat Kesulitan</label>
+                    <select value={formData.difficulty} onChange={e => setFormData({...formData, difficulty: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none">
+                      <option value="Light">Light</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Hard">Hard</option>
+                    </select>
                   </div>
                 </div>
 
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-on-surface-variant mb-1">Status Operasional</label>
-                  <select className="w-full px-3 py-2 border rounded-md" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-                    <option value="Buka">Buka / Aktif</option>
-                    <option value="Tutup">Ditutup Sementara</option>
-                    <option value="Waspada">Waspada Cuaca</option>
-                  </select>
+                {/* KOLOM 2 */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Ketinggian (mdpl)</label>
+                    <input type="number" required value={formData.elevation} onChange={e => setFormData({...formData, elevation: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Estimasi Durasi</label>
+                    <input type="text" required placeholder="Contoh: 5h 30m" value={formData.estimatedDuration} onChange={e => setFormData({...formData, estimatedDuration: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Jarak Pendakian</label>
+                    <input type="text" required placeholder="Contoh: 6.5 km" value={formData.distance} onChange={e => setFormData({...formData, distance: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Status</label>
+                    <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none">
+                      <option value="Buka">Buka</option>
+                      <option value="Tutup">Tutup</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-on-surface-variant mb-1">Deskripsi Gunung</label>
-                  <textarea rows={3} className="w-full px-3 py-2 border rounded-md" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})}></textarea>
+
+                {/* KOLOM 3 */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Latitude</label>
+                    <input type="text" required placeholder="-7.1895" value={formData.latitude} onChange={e => setFormData({...formData, latitude: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Longitude</label>
+                    <input type="text" required placeholder="109.9213" value={formData.longitude} onChange={e => setFormData({...formData, longitude: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">URL Gambar</label>
+                    <input type="url" required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none" />
+                  </div>
                 </div>
               </div>
-              <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant mt-6">
-                <button type="button" onClick={handleCloseModal} className="px-4 py-2 border border-outline-variant rounded-md hover:bg-surface-container">Batal</button>
-                <button type="submit" disabled={isSaving} className="px-4 py-2 bg-primary text-on-primary rounded-md hover:bg-surface-tint disabled:opacity-50 flex items-center gap-2">
-                  {isSaving ? 'Menyimpan...' : 'Simpan Gunung'}
+
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Deskripsi Singkat</label>
+                <textarea rows={3} required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#4A7C59] outline-none"></textarea>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2 rounded-lg font-medium text-gray-600 hover:bg-gray-100 transition-colors">
+                  Batal
+                </button>
+                <button type="submit" className="px-6 py-2 rounded-lg font-medium bg-[#4A7C59] text-white hover:bg-[#3b6347] transition-colors shadow-sm">
+                  {editingId ? 'Simpan Perubahan' : 'Tambah Gunung'}
                 </button>
               </div>
             </form>
@@ -325,6 +285,4 @@ const ManajemenGunung: React.FC = () => {
       )}
     </div>
   );
-};
-
-export default ManajemenGunung;
+}

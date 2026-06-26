@@ -1,12 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 
+// --- IMPORT LEAFLET UNTUK PETA INTERAKTIF ---
+import { MapContainer, TileLayer, Marker, Popup, GeoJSON } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+// Fix bug icon bawaan Leaflet di React/Vite
+let DefaultIcon = L.icon({
+    iconUrl: icon,
+    shadowUrl: iconShadow,
+    iconAnchor: [12, 41] 
+});
+L.Marker.prototype.options.icon = DefaultIcon;
+
 // --- INTERFACES ---
 interface Segment {
   id: string;
   name: string;
-  distance: number; 
-  estimatedTime: string; 
+  distance: number | string; 
+  estimatedTime: string | number; 
   geoJsonUrl?: string; 
 }
 
@@ -20,8 +35,8 @@ interface Trail {
   prohibitions: string; 
   sourceUrl: string; 
   imageUrl?: string; 
-  latitude?: number | string; // <-- KOORDINAT KHUSUS JALUR/BASECAMP
-  longitude?: number | string; // <-- KOORDINAT KHUSUS JALUR/BASECAMP
+  latitude?: number | string; 
+  longitude?: number | string; 
   segments: Segment[]; 
 }
 
@@ -39,6 +54,61 @@ interface WeatherHistory {
   wind_speed_10m_max: number[];
 }
 
+// --- KOMPONEN PETA CERDAS PENGGANTI IFRAME ---
+const TrailMap = ({ trail, lat, lon }: { trail: Trail, lat: number, lon: number }) => {
+  const [geoJsons, setGeoJsons] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Mengekstrak dan mendownload semua file GeoJSON dari setiap segmen
+    const fetchGeoJsons = async () => {
+      const fetchedData: any[] = [];
+      if (trail.segments && trail.segments.length > 0) {
+        for (const seg of trail.segments) {
+          if (seg.geoJsonUrl) {
+            try {
+              const res = await fetch(seg.geoJsonUrl);
+              const data = await res.json();
+              fetchedData.push(data);
+            } catch (e) {
+              console.error(`Gagal meload GeoJSON untuk segmen ${seg.name}`, e);
+            }
+          }
+        }
+      }
+      setGeoJsons(fetchedData);
+    };
+    
+    fetchGeoJsons();
+  }, [trail]);
+
+  return (
+    <MapContainer 
+      center={[lat, lon]} 
+      zoom={13} 
+      style={{ height: '100%', width: '100%', zIndex: 0 }} 
+    >
+      <TileLayer
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      />
+      
+      <Marker position={[lat, lon]}>
+        <Popup className="font-bold">Basecamp {trail.name}</Popup>
+      </Marker>
+      
+      {/* Menggambar semua lintasan merah dari file GeoJSON yang berhasil di-load */}
+      {geoJsons.map((geo, idx) => (
+        <GeoJSON 
+          key={idx}
+          data={geo} 
+          style={{ color: '#ef4444', weight: 4, opacity: 0.8 }} 
+        />
+      ))}
+    </MapContainer>
+  );
+};
+
+// --- KOMPONEN UTAMA ---
 const ManajemenJalur: React.FC = () => {
   const [trails, setTrails] = useState<Trail[]>([]);
   const [mountains, setMountains] = useState<Mountain[]>([]);
@@ -58,17 +128,13 @@ const ManajemenJalur: React.FC = () => {
   // --- 1. FETCH DATA DARI BACKEND NODE.JS ---
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token'); 
-      const headers = {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      };
-
-      const resMount = await fetch('http://localhost:5000/api/mountains', { headers });
+      const apiUrl = import.meta.env.VITE_API_URL;
+      
+      const resMount = await fetch(`${apiUrl}/mountains`);
       const dataMount = await resMount.json();
       if (dataMount.success) setMountains(dataMount.data);
 
-      const resTrail = await fetch('http://localhost:5000/api/trails', { headers });
+      const resTrail = await fetch(`${apiUrl}/trails`);
       const dataTrail = await resTrail.json();
       if (dataTrail.success) setTrails(dataTrail.data);
 
@@ -124,20 +190,19 @@ const ManajemenJalur: React.FC = () => {
     if (formData.segments.length === 0) return toast.error("Minimal harus ada 1 Segmen!");
     
     try {
-      // Pastikan latitude dan longitude diubah ke Number sebelum dikirim
       const payloadToSave = {
         ...formData,
         latitude: formData.latitude ? Number(formData.latitude) : '',
         longitude: formData.longitude ? Number(formData.longitude) : ''
       };
 
-      const url = editingTrail ? `http://localhost:5000/api/trails/${editingTrail.id}` : `http://localhost:5000/api/trails`;
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const url = editingTrail ? `${apiUrl}/trails/${editingTrail.id}` : `${apiUrl}/trails`;
       const method = editingTrail ? 'PUT' : 'POST';
-      const token = localStorage.getItem('token');
 
       const response = await fetch(url, {
         method: method,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadToSave)
       });
 
@@ -159,10 +224,9 @@ const ManajemenJalur: React.FC = () => {
   const handleDelete = async (id: string) => {
     if(!window.confirm("Apakah Anda yakin ingin menghapus jalur ini?")) return;
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/trails/${id}`, {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const response = await fetch(`${apiUrl}/trails/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
       });
       const resData = await response.json();
       if (resData.success) {
@@ -182,7 +246,6 @@ const ManajemenJalur: React.FC = () => {
     setIsDetailOpen(true);
     setWeatherData(null);
 
-    // LOGIKA CERDAS: Gunakan titik Basecamp/Jalur jika ada. Jika tidak, fallback ke Puncak Gunung.
     const targetLat = trail.latitude || mountain?.latitude;
     const targetLon = trail.longitude || mountain?.longitude;
 
@@ -258,7 +321,7 @@ const ManajemenJalur: React.FC = () => {
                 </td>
               </tr>
             ))}
-            {trails.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-on-surface-variant">Belum ada jalur. Tarik data dari Backend.</td></tr>}
+            {trails.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-on-surface-variant">Belum ada jalur. Klik Tambah Jalur.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -273,7 +336,6 @@ const ManajemenJalur: React.FC = () => {
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
-              {/* Kiri: Info Dasar & Regulasi */}
               <div className="space-y-4">
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -309,11 +371,10 @@ const ManajemenJalur: React.FC = () => {
                   <input required placeholder="Cth: Jalur Patak Banteng" className="w-full p-2 border rounded-md focus:ring-1 focus:ring-primary" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                 </div>
 
-                {/* KOORDINAT KHUSUS JALUR DITAMBAHKAN DI SINI */}
                 <div className="bg-secondary/5 p-3 rounded-lg border border-secondary/20 grid grid-cols-2 gap-4">
                   <div className="col-span-2 mb-[-10px]">
                     <p className="text-xs text-secondary font-bold flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">pin_drop</span> Titik Koordinat Basecamp (Prioritas Cuaca & Peta)
+                      <span className="material-symbols-outlined text-[14px]">pin_drop</span> Titik Koordinat Basecamp
                     </p>
                   </div>
                   <div>
@@ -335,7 +396,7 @@ const ManajemenJalur: React.FC = () => {
                 </div>
 
                 <div className="bg-surface-container-low p-4 rounded-lg border border-outline-variant space-y-3">
-                  <h5 className="text-sm font-bold flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">gavel</span> Regulasi Sesuai Muncak.id</h5>
+                  <h5 className="text-sm font-bold flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">gavel</span> Regulasi</h5>
                   
                   <div>
                     <label className="block text-xs font-medium mb-1 text-on-surface-variant">Syarat Pendakian Resmi</label>
@@ -384,11 +445,11 @@ const ManajemenJalur: React.FC = () => {
                             <input type="number" required className="w-full p-1.5 text-xs border rounded" value={seg.distance} onChange={e => updateSegment(seg.id, 'distance', e.target.value)} placeholder="448" />
                           </div>
                           <div>
-                            <label className="text-[10px] text-on-surface-variant">Estimasi Default (Menit)</label>
-                            <input required className="w-full p-1.5 text-xs border rounded" value={seg.estimatedTime} onChange={e => updateSegment(seg.id, 'estimatedTime', e.target.value)} placeholder="120" />
+                            <label className="text-[10px] text-on-surface-variant">Estimasi Waktu (Menit)</label>
+                            <input type="number" required className="w-full p-1.5 text-xs border rounded" value={seg.estimatedTime} onChange={e => updateSegment(seg.id, 'estimatedTime', e.target.value)} placeholder="120" />
                           </div>
                           <div className="col-span-2">
-                            <label className="text-[10px] text-on-surface-variant">GeoJSON URL (Opsional, dibiarkan kosong tidak apa)</label>
+                            <label className="text-[10px] text-on-surface-variant">GeoJSON URL (Opsional)</label>
                             <input className="w-full p-1.5 text-xs border rounded bg-surface-container-low" value={seg.geoJsonUrl || ''} onChange={e => updateSegment(seg.id, 'geoJsonUrl', e.target.value)} placeholder="https://..." />
                           </div>
                         </div>
@@ -444,7 +505,6 @@ const ManajemenJalur: React.FC = () => {
                 <div className="bg-surface border border-outline-variant rounded-xl p-4 shadow-sm">
                   <div className="flex justify-between items-start mb-4 border-b pb-2">
                     <h4 className="font-title-md font-bold text-on-surface">Informasi & Regulasi</h4>
-                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold border border-primary/20">Sumber: Muncak.id</span>
                   </div>
                   
                   <div className="space-y-4">
@@ -468,14 +528,15 @@ const ManajemenJalur: React.FC = () => {
                   </div>
                 </div>
 
+                {/* --- PETA LEAFLET DITAMPILKAN DI SINI --- */}
                 <div>
-                  <h4 className="font-title-md font-bold text-on-surface mb-2">Peta Lokasi Basecamp</h4>
+                  <h4 className="font-title-md font-bold text-on-surface mb-2">Peta Lokasi Basecamp & Rute</h4>
                   <div className="w-full h-48 bg-surface-container rounded-xl border border-outline-variant overflow-hidden relative shadow-sm">
                     {(() => {
                       const lat = selectedTrail.latitude || selectedMountain?.latitude;
                       const lon = selectedTrail.longitude || selectedMountain?.longitude;
                       return lat && lon ? (
-                        <iframe title="OpenStreetMap" width="100%" height="100%" frameBorder="0" scrolling="no" src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(lon) - 0.05}%2C${Number(lat) - 0.05}%2C${Number(lon) + 0.05}%2C${Number(lat) + 0.05}&layer=mapnik&marker=${lat}%2C${lon}`}></iframe>
+                         <TrailMap trail={selectedTrail} lat={Number(lat)} lon={Number(lon)} />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-on-surface-variant">
                           <span className="material-symbols-outlined text-[32px] mb-2 opacity-50">map</span>
@@ -516,7 +577,7 @@ const ManajemenJalur: React.FC = () => {
                         <table className="w-full text-left text-xs">
                           <thead className="bg-surface-container-low text-on-surface font-bold">
                             <tr>
-                              <th className="py-2 px-3 border-b">Tanggal (7 Hari Terakhir)</th>
+                              <th className="py-2 px-3 border-b">Tanggal (7 Hari)</th>
                               <th className="py-2 px-3 border-b">Suhu (Min/Max)</th>
                               <th className="py-2 px-3 border-b">Angin Max</th>
                             </tr>
@@ -535,7 +596,7 @@ const ManajemenJalur: React.FC = () => {
                     </div>
                   ) : (
                     <div className="bg-error-container/50 text-on-error-container p-4 rounded-xl border border-error/20 text-xs">
-                      Data cuaca Open-Meteo tidak tersedia. Periksa titik kordinat Basecamp.
+                      Data cuaca Open-Meteo tidak tersedia.
                     </div>
                   )}
                 </div>
