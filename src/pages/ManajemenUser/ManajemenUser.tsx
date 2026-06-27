@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, deleteDoc, updateDoc, addDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import { logActivity } from '../../utils/activityLogger';
 
 interface User {
   id: string;
@@ -53,12 +54,14 @@ const ManajemenUser: React.FC = () => {
       if (editingUser) {
         // Update existing user
         await updateDoc(doc(db, "users", editingUser.id), formData);
+        await logActivity("Update User", `Mengubah data user ${formData.name}`);
       } else {
         // Add new user (Note: This only adds to Firestore, not Firebase Auth)
         await addDoc(collection(db, "users"), {
           ...formData,
           createdAt: new Date().toISOString()
         });
+        await logActivity("Create User", `Menambahkan user ${formData.name}`);
       }
       handleCloseModal();
     } catch (error) {
@@ -67,10 +70,11 @@ const ManajemenUser: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (user: User) => {
     if (window.confirm("Apakah Anda yakin ingin menghapus user ini?")) {
       try {
-        await deleteDoc(doc(db, "users", id));
+        await deleteDoc(doc(db, "users", user.id));
+        await logActivity("Delete User", `Menghapus user ${user.name}`);
       } catch (error) {
         console.error("Error deleting user: ", error);
       }
@@ -81,14 +85,15 @@ const ManajemenUser: React.FC = () => {
     try {
       const newStatus = user.status === 'Suspended' ? 'Aktif' : 'Suspended';
       await updateDoc(doc(db, "users", user.id), { status: newStatus });
+      await logActivity("Update User", `Mengubah status user ${user.name} menjadi ${newStatus}`);
     } catch (error) {
       console.error("Error suspending user: ", error);
     }
   };
 
   const filteredUsers = users.filter(u => 
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -145,11 +150,11 @@ const ManajemenUser: React.FC = () => {
                   <td className="py-4 px-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold">
-                        {user.name.charAt(0)}
+                        {user.name ? user.name.charAt(0).toUpperCase() : '?'}
                       </div>
                       <div>
-                        <div className="font-title-lg text-title-lg text-on-surface">{user.name}</div>
-                        <div className="font-body-md text-[13px] text-on-surface-variant">{user.email}</div>
+                        <div className="font-title-lg text-title-lg text-on-surface">{user.name || 'Unknown User'}</div>
+                        <div className="font-body-md text-[13px] text-on-surface-variant">{user.email || 'No Email'}</div>
                       </div>
                     </div>
                   </td>
@@ -168,7 +173,7 @@ const ManajemenUser: React.FC = () => {
                       <button onClick={() => handleOpenModal(user)} className="p-1.5 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-md transition-colors" title="Edit">
                         <span className="material-symbols-outlined text-[20px]">edit</span>
                       </button>
-                      <button onClick={() => handleDelete(user.id)} className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-md transition-colors" title="Hapus">
+                      <button onClick={() => handleDelete(user)} className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-md transition-colors" title="Hapus">
                         <span className="material-symbols-outlined text-[20px]">delete</span>
                       </button>
                       <button onClick={() => handleSuspend(user)} className="p-1.5 text-on-surface-variant hover:text-tertiary hover:bg-tertiary/10 rounded-md transition-colors" title="Suspend / Unsuspend">

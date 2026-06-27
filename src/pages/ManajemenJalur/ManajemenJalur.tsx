@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { logActivity } from '../../utils/activityLogger';
 
 // --- IMPORT LEAFLET UNTUK PETA INTERAKTIF ---
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON } from 'react-leaflet';
@@ -210,6 +211,14 @@ const ManajemenJalur: React.FC = () => {
 
       if (resData.success) {
         toast.success(editingTrail ? "Jalur berhasil diperbarui!" : "Jalur baru berhasil ditambahkan!");
+        
+        if (editingTrail) {
+          await logActivity("Update Jalur", `Mengubah jalur ${payloadToSave.name}`);
+        } else {
+          const mnt = mountains.find((m: Mountain) => m.id === payloadToSave.mountainId);
+          await logActivity("Create Jalur", `Menambahkan jalur ${payloadToSave.name} pada gunung ${mnt ? mnt.name : payloadToSave.mountainId}`);
+        }
+        
         fetchData(); 
         setIsFormOpen(false);
       } else {
@@ -221,16 +230,17 @@ const ManajemenJalur: React.FC = () => {
   };
 
   // --- 3. HAPUS DATA ---
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (trail: Trail) => {
     if(!window.confirm("Apakah Anda yakin ingin menghapus jalur ini?")) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
-      const response = await fetch(`${apiUrl}/trails/${id}`, {
+      const response = await fetch(`${apiUrl}/trails/${trail.id}`, {
         method: 'DELETE',
       });
       const resData = await response.json();
       if (resData.success) {
         toast.success("Jalur berhasil dihapus!");
+        await logActivity("Delete Jalur", `Menghapus jalur ${trail.name}`);
         fetchData();
       }
     } catch (e) {
@@ -317,7 +327,7 @@ const ManajemenJalur: React.FC = () => {
                 <td className="py-4 px-6 text-right">
                    <button onClick={() => handleOpenDetail(trail)} className="text-secondary mr-4 hover:underline font-medium">Detail & Cuaca</button>
                    <button onClick={() => handleOpenForm(trail)} className="text-primary mr-4 hover:underline">Edit</button>
-                   <button onClick={() => handleDelete(trail.id)} className="text-error hover:underline">Hapus</button>
+                   <button onClick={() => handleDelete(trail)} className="text-error hover:underline">Hapus</button>
                 </td>
               </tr>
             ))}

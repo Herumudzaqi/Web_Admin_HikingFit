@@ -35,13 +35,13 @@ const Login: React.FC = () => {
         const userData = userDocSnap.data();
         
         // 3. Validasi Role Admin
-        if (userData.role === 'admin') {
+        if (userData.role && userData.role.toLowerCase() === 'admin') {
           
           // 4. MINTA TOKEN FRESH KE FIREBASE LALU SIMPAN UNTUK BACKEND NODE.JS
           const token = await user.getIdToken(true);
           localStorage.setItem('token', token); // <--- Kunci Utama agar halaman Manajemen tidak error!
           
-          await logActivity("Login", "Admin berhasil login");
+          await logActivity("Login Admin", "User berhasil login");
           navigate('/dashboard'); // Sukses masuk ke dashboard
         } else {
           // Jika bukan admin, paksa logout dan tampilkan error

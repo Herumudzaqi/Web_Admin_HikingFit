@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom'; // Hapus Link, ganti pakai useNavigate
 import { signOut } from 'firebase/auth';
 import { auth } from '../../config/firebase'; // Pastikan path ini benar sesuai struktur folder Abang
+import { logActivity } from '../../utils/activityLogger';
 
 const Sidebar: React.FC = () => {
   const navigate = useNavigate(); // Untuk navigasi setelah logout
@@ -19,11 +20,10 @@ const Sidebar: React.FC = () => {
   // --- FUNGSI LOGOUT YANG BENAR ---
   const handleLogout = async () => {
     try {
+      await logActivity("Logout", "User logout");
+      
       // 1. Matikan sesi dari Firebase Auth
       await signOut(auth);
-      
-      // 2. Hapus Token JWT Admin dari penyimpanan browser
-      localStorage.removeItem('token');
       
       // 3. Pindah ke halaman login
       navigate('/login');
@@ -48,7 +48,7 @@ const Sidebar: React.FC = () => {
       </div>
       
       <div className="flex-1 overflow-y-auto px-md space-y-2">
-        <NavLink to="/dashboard" className={getNavLinkClass}>
+        <NavLink to="/dashboard" end className={getNavLinkClass}>
           {({ isActive }) => (
             <>
               <span className={getIconClass({ isActive })}>dashboard</span>
@@ -57,7 +57,7 @@ const Sidebar: React.FC = () => {
           )}
         </NavLink>
         
-        <NavLink to="/users" className={getNavLinkClass}>
+        <NavLink to="/dashboard/users" className={getNavLinkClass}>
           {({ isActive }) => (
             <>
               <span className={getIconClass({ isActive })}>group</span>
@@ -66,7 +66,7 @@ const Sidebar: React.FC = () => {
           )}
         </NavLink>
         
-        <NavLink to="/mountains" className={getNavLinkClass}>
+        <NavLink to="/dashboard/mountains" className={getNavLinkClass}>
           {({ isActive }) => (
             <>
               <span className={getIconClass({ isActive })}>landscape</span>
@@ -75,7 +75,7 @@ const Sidebar: React.FC = () => {
           )}
         </NavLink>
         
-        <NavLink to="/trails" className={getNavLinkClass}>
+        <NavLink to="/dashboard/trails" className={getNavLinkClass}>
           {({ isActive }) => (
             <>
               <span className={getIconClass({ isActive })}>route</span>
@@ -84,7 +84,7 @@ const Sidebar: React.FC = () => {
           )}
         </NavLink>
         
-        <NavLink to="/reports" className={getNavLinkClass}>
+        <NavLink to="/dashboard/reports" className={getNavLinkClass}>
           {({ isActive }) => (
             <>
               <span className={getIconClass({ isActive })}>assessment</span>

@@ -1,26 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 
-// Mock Data
-const MOCK_LOGS = [
-  { id: 1, date: '24 Oct 2023', time: '14:32:01', activity: 'Tambah User', desc: 'Admin system.admin@hikingfit.com added new guide profile "Budi Santoso" to region Mount Rinjani.', status: 'Success', icon: 'person_add', iconColor: 'text-primary', iconBg: 'bg-primary/10' },
-  { id: 2, date: '24 Oct 2023', time: '11:15:44', activity: 'Update Rute Gunung', desc: 'Modified GPS coordinates for Pos 3 trail on Mount Semeru due to recent landslide alerts.', status: 'Success', icon: 'location_on', iconColor: 'text-secondary', iconBg: 'bg-secondary/10' },
-  { id: 3, date: '23 Oct 2023', time: '09:05:12', activity: 'Suspend User', desc: 'Suspended account ID #88421 for violating community guidelines during booking process.', status: 'Reviewed', icon: 'block', iconColor: 'text-error', iconBg: 'bg-error/10' },
-  { id: 4, date: '23 Oct 2023', time: '08:30:00', activity: 'Export Laporan', desc: 'System generated weekly activity digest. Downloaded by admin.super@hikingfit.com.', status: 'Success', icon: 'download', iconColor: 'text-tertiary', iconBg: 'bg-tertiary/10' },
-  { id: 5, date: '22 Oct 2023', time: '16:45:22', activity: 'Sync Database', desc: 'Automated sync with regional meteorology API for weather updates on all active trails.', status: 'Failed', icon: 'sync_problem', iconColor: 'text-error', iconBg: 'bg-error/10' },
-];
+interface ActivityLog {
+  id: string;
+  action: string;
+  description: string;
+  status: string;
+  userName: string;
+  userEmail: string;
+  createdAt: string;
+}
 
 const LaporanAktivitas: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'activity_logs'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logsData: ActivityLog[] = [];
+      snapshot.forEach(doc => {
+        logsData.push({ id: doc.id, ...doc.data() } as ActivityLog);
+      });
+      setLogs(logsData);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const filteredLogs = logs.filter(log => 
+    log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    log.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    log.userName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const getIconProps = (action: string) => {
+    if (action.includes('Create') || action.includes('Tambah')) return { icon: 'add_circle', color: 'text-primary', bg: 'bg-primary/10' };
+    if (action.includes('Update') || action.includes('Edit')) return { icon: 'edit', color: 'text-secondary', bg: 'bg-secondary/10' };
+    if (action.includes('Delete') || action.includes('Hapus')) return { icon: 'delete', color: 'text-error', bg: 'bg-error/10' };
+    if (action.includes('Login')) return { icon: 'login', color: 'text-primary', bg: 'bg-primary/10' };
+    if (action.includes('Logout')) return { icon: 'logout', color: 'text-on-surface-variant', bg: 'bg-surface-variant' };
+    return { icon: 'info', color: 'text-tertiary', bg: 'bg-tertiary/10' };
+  };
+
+  const formatDate = (isoString: string) => {
+    if (!isoString) return '-';
+    const date = new Date(isoString);
+    return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const formatTime = (isoString: string) => {
+    if (!isoString) return '-';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
 
   return (
     <div className="flex flex-col h-full gap-lg">
-      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex-1">
           <h2 className="font-headline-lg text-headline-lg font-bold text-on-surface">Laporan Aktivitas</h2>
           <p className="font-body-md text-body-md text-on-surface-variant mt-1">Review system logs and user actions.</p>
         </div>
-        
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
@@ -32,46 +73,49 @@ const LaporanAktivitas: React.FC = () => {
               onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
-          <button className="px-4 py-2 bg-surface border border-outline-variant rounded-lg text-on-surface hover:bg-surface-container font-body-md text-body-md flex items-center gap-2 transition-colors">
-            <span className="material-symbols-outlined text-[20px]">calendar_today</span>
-            Oct 1 - Oct 31, 2023
-          </button>
-          <button className="w-10 h-10 bg-surface border border-outline-variant rounded-lg text-on-surface flex items-center justify-center hover:bg-surface-container transition-colors">
-            <span className="material-symbols-outlined text-[20px]">filter_list</span>
-          </button>
         </div>
       </div>
 
-      {/* Table Container */}
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm flex-1 flex flex-col overflow-hidden">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-outline-variant bg-surface-container/30">
                 <th className="py-4 px-6 font-label-md text-[11px] uppercase tracking-wider text-on-surface-variant">Tanggal</th>
+                <th className="py-4 px-6 font-label-md text-[11px] uppercase tracking-wider text-on-surface-variant">Admin</th>
                 <th className="py-4 px-6 font-label-md text-[11px] uppercase tracking-wider text-on-surface-variant">Aktivitas</th>
                 <th className="py-4 px-6 font-label-md text-[11px] uppercase tracking-wider text-on-surface-variant">Keterangan</th>
                 <th className="py-4 px-6 font-label-md text-[11px] uppercase tracking-wider text-on-surface-variant text-right">Status</th>
               </tr>
             </thead>
             <tbody>
-              {MOCK_LOGS.map((log) => (
+              {filteredLogs.length === 0 ? (
+                 <tr>
+                   <td colSpan={5} className="py-8 text-center text-on-surface-variant font-bold text-[14px]">Belum ada aktivitas.</td>
+                 </tr>
+              ) : filteredLogs.map((log) => {
+                const iconProps = getIconProps(log.action);
+                return (
                 <tr key={log.id} className="border-b border-outline-variant/50 hover:bg-surface-container-lowest transition-colors">
                   <td className="py-4 px-6">
-                    <div className="font-body-md text-body-md text-on-surface">{log.date}</div>
-                    <div className="font-label-md text-[12px] text-on-surface-variant mt-1">{log.time}</div>
+                    <div className="font-body-md text-body-md text-on-surface">{formatDate(log.createdAt)}</div>
+                    <div className="font-label-md text-[12px] text-on-surface-variant mt-1">{formatTime(log.createdAt)}</div>
+                  </td>
+                  <td className="py-4 px-6">
+                    <div className="font-title-md text-[14px] font-semibold text-on-surface">{log.userName || '-'}</div>
+                    <div className="font-body-md text-[12px] text-on-surface-variant mt-1">{log.userEmail || '-'}</div>
                   </td>
                   <td className="py-4 px-6">
                     <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full ${log.iconBg} ${log.iconColor} flex items-center justify-center shrink-0`}>
-                        <span className="material-symbols-outlined text-[16px]">{log.icon}</span>
+                      <div className={`w-8 h-8 rounded-full ${iconProps.bg} ${iconProps.color} flex items-center justify-center shrink-0`}>
+                        <span className="material-symbols-outlined text-[16px]">{iconProps.icon}</span>
                       </div>
-                      <span className="font-title-lg text-[14px] font-semibold text-on-surface">{log.activity}</span>
+                      <span className="font-title-lg text-[14px] font-semibold text-on-surface">{log.action}</span>
                     </div>
                   </td>
                   <td className="py-4 px-6">
                     <p className="font-body-md text-[13px] text-on-surface-variant leading-relaxed max-w-lg">
-                      {log.desc}
+                      {log.description}
                     </p>
                   </td>
                   <td className="py-4 px-6 text-right">
@@ -80,30 +124,13 @@ const LaporanAktivitas: React.FC = () => {
                       log.status === 'Failed' ? 'bg-error-container/50 text-error border-error/20' : 
                       'bg-surface-variant text-on-surface-variant border-outline-variant'
                     }`}>
-                      {log.status}
+                      {log.status || 'Success'}
                     </span>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="p-4 border-t border-outline-variant bg-surface-container/30 flex items-center justify-between text-sm text-on-surface-variant">
-          <div>Showing 1 to 5 of 124 entries</div>
-          <div className="flex items-center gap-1">
-            <button className="px-3 py-1.5 flex items-center justify-center rounded border border-outline-variant hover:bg-surface-container bg-surface disabled:opacity-50">
-              Previous
-            </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded bg-primary text-on-primary">1</button>
-            <button className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-surface-container bg-surface">2</button>
-            <button className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-surface-container bg-surface">3</button>
-            <span className="px-2">...</span>
-            <button className="px-3 py-1.5 flex items-center justify-center rounded border border-outline-variant hover:bg-surface-container bg-surface">
-              Next
-            </button>
-          </div>
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logActivity } from '../../utils/activityLogger';
 
 export default function ManajemenGunung() {
   const [mountains, setMountains] = useState<any[]>([]);
@@ -71,10 +72,11 @@ export default function ManajemenGunung() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (window.confirm("Yakin ingin menghapus gunung ini?")) {
       try {
         await fetch(`${import.meta.env.VITE_API_URL}/mountains/${id}`, { method: 'DELETE' });
+        await logActivity("Hapus Gunung", `Menghapus gunung ${name} dengan ID ${id}`);
         fetchMountains();
       } catch (error) {
         console.error("Gagal menghapus:", error);
@@ -96,6 +98,12 @@ export default function ManajemenGunung() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
+
+      if (editingId) {
+        await logActivity("Update Gunung", `Mengubah data gunung ${formData.name}`);
+      } else {
+        await logActivity("Create Gunung", `Menambahkan gunung ${formData.name}`);
+      }
 
       setIsModalOpen(false);
       fetchMountains();
@@ -175,7 +183,7 @@ export default function ManajemenGunung() {
                         <button onClick={() => handleEdit(mountain)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm font-medium transition-colors shadow-sm">
                           Edit
                         </button>
-                        <button onClick={() => handleDelete(mountain.id)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded-md text-sm font-medium transition-colors shadow-sm">
+                        <button onClick={() => handleDelete(mountain.id, mountain.name)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded-md text-sm font-medium transition-colors shadow-sm">
                           Hapus
                         </button>
                       </div>
